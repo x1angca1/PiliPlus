@@ -1,0 +1,69 @@
+name: Auto update and build
+
+on:
+    schedule:
+        # 每天 UTC 17:43（北京时间 01:43）检查上游
+        - cron: "43 17 * * *"
+    workflow_dispatch:
+
+jobs:
+    update:
+        runs-on: ubuntu-latest
+        steps:
+            - name: 检查 PAT 密钥
+              run: |
+                  if [ -z "${{ secrets.PAT_TOKEN }}" ]; then
+                    echo "缺少 PAT_TOKEN 密钥，请按 README 说明创建 fine-grained PAT 并添加到仓库 Secrets"
+                    exit 1
+                  fi
+
+            - name: 代码迁出
+              uses: actions/checkout@v7
+              with:
+                  ref: frame-step
+                  fetch-depth: 0
+                  token: ${{ secrets.PAT_TOKEN }}
+
+            - name: 合并上游最新 tag
+              id: merge
+              env:
+                  GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+              run: |
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                  git remote add upstream https://github.com/bggRGjQaUbCoE/PiliPlus.git
+                  git fetch upstream --tags
+
+                  LATEST=$(git tag -l --sort=-v:refname | grep -E '^[0-9]+(\.[0-9]+)+$' | head -1)
+                  MERGED=$(git tag -l --merged HEAD --sort=-v:refname | grep -E '^[0-9]+(\.[0-9]+)+$' | head -1)
+                  echo "上游最新: $LATEST / 已合并: $MERGED"
+
+                  if [ "$LATEST" = "$MERGED" ]; then
+                    echo "changed=false" >> "$GITHUB_OUTPUT"
+                    exit 0
+                  fi
+
+                  if git merge "$LATEST" --no-edit; then
+                    git push origin frame-step
+                    echo "changed=true" >> "$GITHUB_OUTPUT"
+                    echo "version=$LATEST" >> "$GITHUB_OUTPUT"
+                  else
+                    git merge --abort || true
+                    gh api repos/${{ github.repository }}/issues \
+                      -f title="自动合并上游 $LATEST 失败，需要手动处理" \
+                      -f body="上游 tag \`$LATEST\` 合并到 frame-step 分支时发生冲突。请在本地执行 \`git fetch upstream --tags && git merge $LATEST\`，解决冲突后推送。"
+                    exit 1
+                  fi
+
+            - name: 触发全平台构建并发布
+              if: steps.merge.outputs.changed == 'true'
+              env:
+                  GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+              run: |
+                  gh workflow run build.yml --ref frame-step \
+                    -f build_android=true \
+                    -f build_ios=true \
+                    -f build_mac=true \
+                    -f build_win_x64=true \
+                    -f build_linux_x64=true \
+                    -f tag="frame-${{ steps.merge.outputs.version }}"
