@@ -409,9 +409,9 @@ abstract final class Api {
   // 黑名单
   static const String blackLst = '/x/relation/blacks';
 
-  // github 获取最新版
+  // 更新源：jsDelivr 国内 CDN 分发的 releases.json（由 update-feed 工作流生成）
   static const String latestApp =
-      'https://api.github.com/repos/bggRGjQaUbCoE/PiliPlus/releases';
+      'https://fastly.jsdelivr.net/gh/x1angca1/PiliPlus@frame-step/releases.json';
 
   // 多少人在看
   // https://api.bilibili.com/x/player/online/total?aid=913663681&cid=1203559746&bvid=BV1MM4y1s7NZ&ts=56427838

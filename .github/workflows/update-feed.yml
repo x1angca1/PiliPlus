@@ -1,0 +1,65 @@
+name: Update release feed
+
+on:
+    schedule:
+        # 每天 UTC 06:23（北京时间 14:23），在凌晨构建之后
+        - cron: "23 6 * * *"
+    workflow_dispatch:
+        inputs:
+            proxy:
+                description: "GitHub 下载加速代理前缀（以 / 结尾）"
+                required: false
+                default: "https://gh-proxy.com/"
+                type: string
+
+jobs:
+    feed:
+        runs-on: ubuntu-latest
+        env:
+            PROXY: ${{ github.event.inputs.proxy || 'https://gh-proxy.com/' }}
+            GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+        steps:
+            - name: 代码迁出
+              uses: actions/checkout@v7
+              with:
+                  ref: frame-step
+                  token: ${{ secrets.PAT_TOKEN }}
+
+            - name: 生成并提交 releases.json
+              run: |
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+                  REL=$(gh release list --repo x1angca1/PiliPlus --limit 30 \
+                    --json tagName,publishedAt \
+                    --jq 'map(select(.tagName | startswith("frame-"))) | max_by(.publishedAt) | .tagName // empty')
+
+                  if [ -z "$REL" ]; then
+                    echo "没有 frame-* Release，跳过"
+                    exit 0
+                  fi
+                  echo "使用 Release: $REL"
+
+                  gh release view "$REL" --repo x1angca1/PiliPlus \
+                    --json tagName,publishedAt,body,assets \
+                    | jq --arg p "$PROXY" '[{
+                        tag_name: .tagName,
+                        created_at: .publishedAt,
+                        body: (.body // "PiliPlus fork 更新（含逐帧播放）"),
+                        assets: [.assets[] | {name: .name, browser_download_url: ($p + .url)}]
+                      }]' > releases.json
+
+                  if git diff --quiet; then
+                    echo "releases.json 无变化"
+                    exit 0
+                  fi
+
+                  cat releases.json
+                  git add releases.json
+                  git commit -m "chore: refresh releases.json from $REL"
+                  git push
+
+            - name: 刷新 jsDelivr CDN 缓存
+              run: |
+                  curl -fsSL "https://purge.jsdelivr.net/gh/x1angca1/PiliPlus@frame-step/releases.json" \
+                    || echo "purge 失败（不影响正确性，仅延迟生效）"
