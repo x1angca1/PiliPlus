@@ -13,4 +13,6 @@ enum BottomControlType {
   dmChart,
   qa,
   aiTranslate,
+  frameBackward,
+  frameForward,
 }

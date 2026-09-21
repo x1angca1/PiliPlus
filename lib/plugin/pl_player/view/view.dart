@@ -443,6 +443,28 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
         },
       ),
 
+      /// 逐帧后退
+      BottomControlType.frameBackward => ComBtn(
+        width: widgetWidth,
+        height: 30,
+        tooltip: '逐帧后退',
+        icon: const Center(
+          child: Text('-1帧', style: TextStyle(color: Colors.white, fontSize: 12)),
+        ),
+        onTap: () => plPlayerController.frameStep(backward: true),
+      ),
+
+      /// 逐帧前进
+      BottomControlType.frameForward => ComBtn(
+        width: widgetWidth,
+        height: 30,
+        tooltip: '逐帧前进',
+        icon: const Center(
+          child: Text('+1帧', style: TextStyle(color: Colors.white, fontSize: 12)),
+        ),
+        onTap: () => plPlayerController.frameStep(),
+      ),
+
       /// 时间进度
       BottomControlType.time => Obx(
         () => _VideoTime(
@@ -880,6 +902,8 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
 
     List<BottomControlType> userSpecifyItemLeft = [
       .playOrPause,
+      .frameBackward,
+      .frameForward,
       .time,
       if (!isNotFileSource || anySeason) ...[.pre, .next],
     ];

@@ -1296,6 +1296,16 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     ).whenComplete(play);
   }
 
+  /// 逐帧步进（后退/前进一帧）
+  Future<void> frameStep({bool backward = false}) async {
+    if (videoPlayerController case NativePlayer pp) {
+      if (isLive || isBuffering.value) return;
+      if (!backward && isCompleted) return;
+      await pause();
+      pp.command([backward ? 'frame-back-step' : 'frame-step']);
+    }
+  }
+
   void doubleTapFuc(DoubleTapType type) {
     if (!enableQuickDouble) {
       onDoubleTapCenter();
