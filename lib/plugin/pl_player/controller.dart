@@ -1301,8 +1301,17 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     if (videoPlayerController case NativePlayer pp) {
       if (isLive || isBuffering.value) return;
       if (!backward && isCompleted) return;
+
+      // mpv 的 frame-step 在嵌入渲染下不可重复（只步进一次），
+      // 改用精确 seek 按一帧时长步进，暂停状态下可无限次重复
+      final fps = double.tryParse(pp.getProperty('estimated-vf-fps')) ?? 0;
+      final seconds = (fps > 0 ? 1 / fps : 1 / 24).toStringAsFixed(4);
       await pause();
-      pp.command([backward ? 'frame-back-step' : 'frame-step']);
+      await pp.command([
+        'seek',
+        '${backward ? '-' : '+'}$seconds',
+        'relative+exact',
+      ]);
     }
   }
 
