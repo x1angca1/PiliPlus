@@ -41,21 +41,24 @@ jobs:
                   echo "使用 Release: $REL"
 
                   gh release view "$REL" --repo x1angca1/PiliPlus \
-                    --json tagName,publishedAt,body,assets \
+                    --json tagName,body,assets \
                     | jq --arg p "$PROXY" '[{
                         tag_name: .tagName,
-                        created_at: .publishedAt,
+                        created_at: (.assets | map(.createdAt) | max),
                         body: (.body // "PiliPlus fork 更新（含逐帧播放）"),
-                        assets: [.assets[] | {name: .name, browser_download_url: ($p + .url)}]
+                        assets: [(.assets | sort_by(.createdAt) | reverse)[]
+                                  | {name: .name, browser_download_url: ($p + .url)}]
                       }]' > releases.json
 
-                  if git diff --quiet; then
+                  # 先暂存再比较：git diff 看不到未跟踪的新文件，
+                  # 之前因此误判"无变化"，导致 releases.json 从未提交
+                  git add releases.json
+                  if git diff --cached --quiet; then
                     echo "releases.json 无变化"
                     exit 0
                   fi
 
                   cat releases.json
-                  git add releases.json
                   git commit -m "chore: refresh releases.json from $REL"
                   git push
 
