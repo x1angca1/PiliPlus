@@ -35,8 +35,23 @@ abstract final class Update {
         return;
       }
       final data = res.data[0];
-      final int latest =
-          DateTime.parse(data['created_at']).millisecondsSinceEpoch ~/ 1000;
+      // fork 的 release 只追加资产，created_at 不会刷新，
+      // 按最新资产时间判断是否有更新，并让下载优先选到最新资产
+      final assets = ((data['assets'] as List?) ?? [])
+          .whereType<Map<String, dynamic>>()
+          .toList()
+        ..sort(
+          (a, b) => ((b['updated_at'] ?? b['created_at'] ?? '') as String)
+              .compareTo(
+                (a['updated_at'] ?? a['created_at'] ?? '') as String,
+              ),
+        );
+      data['assets'] = assets;
+      final int latest = assets.isEmpty
+          ? DateTime.parse(data['created_at']).millisecondsSinceEpoch ~/ 1000
+          : DateTime.parse(
+              assets.first['updated_at'] ?? assets.first['created_at'],
+            ).millisecondsSinceEpoch ~/ 1000;
       if (BuildConfig.buildTime >= latest) {
         if (!isAuto) {
           SmartDialog.showToast('已是最新版本');
@@ -66,7 +81,7 @@ abstract final class Update {
                       Text('${data['body']}'),
                       TextButton(
                         onPressed: () => PageUtils.launchURL(
-                          '${Constants.sourceCodeUrl}/commits/main',
+                          '${Constants.sourceCodeUrl}/commits/frame-step',
                         ),
                         child: Text(
                           "点此查看完整更新(即commit)内容",
