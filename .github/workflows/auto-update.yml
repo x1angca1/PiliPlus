@@ -24,21 +24,34 @@ jobs:
                   fetch-depth: 0
                   token: ${{ secrets.PAT_TOKEN }}
 
-            - name: 合并上游最新 tag
+            - name: 合并上游最新 Release
               id: merge
               env:
                   GH_TOKEN: ${{ secrets.PAT_TOKEN }}
               run: |
                   git config user.name "github-actions[bot]"
                   git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+                  # 只跟随上游 GitHub 正式 Release（排除 draft / prerelease），
+                  # 上游非 release 的提交或 tag 不触发构建与发布
+                  LATEST=$(gh release list --repo bggRGjQaUbCoE/PiliPlus \
+                    --exclude-drafts --exclude-pre-releases \
+                    --json tagName,publishedAt \
+                    --jq 'sort_by(.publishedAt) | reverse | .[0].tagName // empty' \
+                    | grep -E '^[0-9]+(\.[0-9]+)+$' || true)
+
+                  if [ -z "$LATEST" ]; then
+                    echo "上游没有正式 Release，跳过"
+                    echo "changed=false" >> "$GITHUB_OUTPUT"
+                    exit 0
+                  fi
+
                   git remote add upstream https://github.com/bggRGjQaUbCoE/PiliPlus.git
                   git fetch upstream --tags
 
-                  LATEST=$(git tag -l --sort=-v:refname | grep -E '^[0-9]+(\.[0-9]+)+$' | head -1)
-                  MERGED=$(git tag -l --merged HEAD --sort=-v:refname | grep -E '^[0-9]+(\.[0-9]+)+$' | head -1)
-                  echo "上游最新: $LATEST / 已合并: $MERGED"
-
-                  if [ "$LATEST" = "$MERGED" ]; then
+                  echo "上游最新 Release: $LATEST"
+                  if git merge-base --is-ancestor "$LATEST" HEAD; then
+                    echo "该 Release 已合并，跳过"
                     echo "changed=false" >> "$GITHUB_OUTPUT"
                     exit 0
                   fi
@@ -51,7 +64,7 @@ jobs:
                     git merge --abort || true
                     gh api repos/${{ github.repository }}/issues \
                       -f title="自动合并上游 $LATEST 失败，需要手动处理" \
-                      -f body="上游 tag \`$LATEST\` 合并到 frame-step 分支时发生冲突。请在本地执行 \`git fetch upstream --tags && git merge $LATEST\`，解决冲突后推送。"
+                      -f body="上游 Release tag \`$LATEST\` 合并到 frame-step 分支时发生冲突。请在本地执行 \`git fetch upstream --tags && git merge $LATEST\`，解决冲突后推送。"
                     exit 1
                   fi
 
