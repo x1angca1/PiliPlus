@@ -626,6 +626,10 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
         _clearPreview();
       }
       cancelLongPressTimer();
+      _frameStepTimer?.cancel();
+      _frameStepTimer = null;
+      _pendingFrameSteps = 0;
+      _cachedFps = null;
       if (_videoPlayerController != null &&
           _videoPlayerController!.state.playing) {
         await pause(notify: false);
@@ -1297,22 +1301,57 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
   }
 
   /// 逐帧步进（后退/前进一帧）
-  Future<void> frameStep({bool backward = false}) async {
-    if (videoPlayerController case NativePlayer pp) {
-      if (isLive || isBuffering.value) return;
-      if (!backward && isCompleted) return;
+  ///
+  /// mpv 的 frame-step 在嵌入渲染下不可重复（只步进一次），
+  /// 改用精确 seek 按一帧时长步进；但精确 seek 每次都从关键帧
+  /// 重新解码整个 GOP，快速连点会排队造成迟钝，因此：
+  /// - 首次输入立即应用（帧率缓存、已暂停时跳过 pause）
+  /// - 200ms 合并窗口内的连续输入累计为一次 seek
+  /// - 缓冲期间保留剩余步数重试，输入不丢失
+  int _pendingFrameSteps = 0;
+  double? _cachedFps;
+  Timer? _frameStepTimer;
 
-      // mpv 的 frame-step 在嵌入渲染下不可重复（只步进一次），
-      // 改用精确 seek 按一帧时长步进，暂停状态下可无限次重复
-      final fps = double.tryParse(pp.getProperty('estimated-vf-fps')) ?? 0;
-      final seconds = (fps > 0 ? 1 / fps : 1 / 24).toStringAsFixed(4);
-      await pause();
+  void frameStep({bool backward = false}) {
+    if (videoPlayerController is! NativePlayer || isLive) return;
+    if (!backward && isCompleted) return;
+
+    _pendingFrameSteps += backward ? -1 : 1;
+    if (_frameStepTimer == null) {
+      _flushFrameSteps();
+    }
+  }
+
+  Future<void> _flushFrameSteps() async {
+    _frameStepTimer?.cancel();
+    _frameStepTimer = null;
+
+    final steps = _pendingFrameSteps;
+    if (steps == 0) return;
+    if (videoPlayerController case NativePlayer pp) {
+      if (isBuffering.value) {
+        _frameStepTimer = Timer(
+          const Duration(milliseconds: 100),
+          _flushFrameSteps,
+        );
+        return;
+      }
+      _pendingFrameSteps = 0;
+      _cachedFps ??= double.tryParse(pp.getProperty('estimated-vf-fps'));
+      final fps = (_cachedFps ?? 0) > 0 ? _cachedFps! : 24.0;
+      if (playerStatus.value.isPlaying) {
+        await pause();
+      }
       await pp.command([
         'seek',
-        '${backward ? '-' : '+'}$seconds',
+        (steps / fps).toStringAsFixed(4),
         'relative+exact',
       ]);
+    } else {
+      _pendingFrameSteps = 0;
+      return;
     }
+    _frameStepTimer = Timer(const Duration(milliseconds: 200), _flushFrameSteps);
   }
 
   void doubleTapFuc(DoubleTapType type) {
@@ -1540,6 +1579,9 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     // 每次减1，最后销毁
     resetScreenRotation();
     cancelLongPressTimer();
+    _frameStepTimer?.cancel();
+    _frameStepTimer = null;
+    _pendingFrameSteps = 0;
     _cancelSubForSeek();
     if (!_isCloseAll && _playerCount > 1) {
       _playerCount -= 1;
