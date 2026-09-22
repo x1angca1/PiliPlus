@@ -7,6 +7,7 @@ import 'package:PiliPlus/pages/video/introduction/ugc/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
+import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:flutter/services.dart'
     show KeyDownEvent, KeyUpEvent, LogicalKeyboardKey, HardwareKeyboard;
@@ -284,6 +285,17 @@ class PlayerFocus extends StatelessWidget {
             }
             return true;
         }
+      }
+    }
+
+    if (event is KeyDownEvent && !plPlayerController.isLive) {
+      if (key == Pref.frameBackwardKey) {
+        plPlayerController.frameStep(backward: true);
+        return true;
+      }
+      if (key == Pref.frameForwardKey) {
+        plPlayerController.frameStep();
+        return true;
       }
     }
 

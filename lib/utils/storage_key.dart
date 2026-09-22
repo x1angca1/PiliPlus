@@ -26,6 +26,8 @@ abstract final class SettingBoxKey {
       superChatType = 'superChatType',
       fullScreenSCWidth = 'fullScreenSCWidth',
       keyboardControl = 'keyboardControl',
+      frameBackwardKey = 'frameBackwardKey',
+      frameForwardKey = 'frameForwardKey',
       pauseOnMinimize = 'pauseOnMinimize',
       pgcSkipType = 'pgcSkipType',
       audioPlayMode = 'audioPlayMode',

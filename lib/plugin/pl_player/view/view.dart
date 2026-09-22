@@ -448,8 +448,10 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
         width: widgetWidth,
         height: 30,
         tooltip: '逐帧后退',
-        icon: const Center(
-          child: Text('-1帧', style: TextStyle(color: Colors.white, fontSize: 12)),
+        icon: const Icon(
+          Icons.arrow_back_ios,
+          size: 16,
+          color: Colors.white,
         ),
         onTap: () => plPlayerController.frameStep(backward: true),
       ),
@@ -459,8 +461,10 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
         width: widgetWidth,
         height: 30,
         tooltip: '逐帧前进',
-        icon: const Center(
-          child: Text('+1帧', style: TextStyle(color: Colors.white, fontSize: 12)),
+        icon: const Icon(
+          Icons.arrow_forward_ios,
+          size: 16,
+          color: Colors.white,
         ),
         onTap: () => plPlayerController.frameStep(),
       ),

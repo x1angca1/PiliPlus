@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 
+import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/models/common/super_chat_type.dart';
 import 'package:PiliPlus/models/common/video/subtitle_pref_type.dart';
@@ -17,6 +18,7 @@ import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
+import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
@@ -162,6 +164,20 @@ List<SettingsModel> get playSettings => [
     leading: Icon(Icons.keyboard_alt_outlined),
     setKey: SettingBoxKey.keyboardControl,
     defaultVal: true,
+  ),
+  _frameStepKeyModel(
+    title: '逐帧后退快捷键',
+    boxKey: SettingBoxKey.frameBackwardKey,
+    otherBoxKey: SettingBoxKey.frameForwardKey,
+    defaultKey: LogicalKeyboardKey.comma,
+    leading: const Icon(Icons.keyboard_double_arrow_left_outlined),
+  ),
+  _frameStepKeyModel(
+    title: '逐帧前进快捷键',
+    boxKey: SettingBoxKey.frameForwardKey,
+    otherBoxKey: SettingBoxKey.frameBackwardKey,
+    defaultKey: LogicalKeyboardKey.period,
+    leading: const Icon(Icons.keyboard_double_arrow_right_outlined),
   ),
   PopupModel(
     title: 'SuperChat (醒目留言) 显示类型',
@@ -422,3 +438,128 @@ Future<void> showVolumeDialog(
     onChanged(res);
   }
 }
+
+SettingsModel _frameStepKeyModel({
+  required String title,
+  required String boxKey,
+  required String otherBoxKey,
+  required LogicalKeyboardKey defaultKey,
+  required Widget leading,
+}) {
+  LogicalKeyboardKey read() =>
+      LogicalKeyboardKey.findKeyByKeyId(
+        GStorage.setting.get(boxKey, defaultValue: defaultKey.keyId),
+      ) ??
+      defaultKey;
+  return NormalModel(
+    leading: leading,
+    title: title,
+    getSubtitle: () => '当前:「${_keyLabel(read())}」',
+    onTap: (context, setState) async {
+      final res = await _showKeyCaptureDialog(context, title, defaultKey);
+      if (res == null) {
+        return;
+      }
+      await GStorage.setting.put(boxKey, res.keyId);
+      if (_playerReservedKeys.contains(res)) {
+        SmartDialog.showToast('该按键已被播放器内置快捷键占用，内置快捷键优先生效');
+      } else if (res.keyId ==
+          GStorage.setting.get(otherBoxKey, defaultValue: -1)) {
+        SmartDialog.showToast('与另一逐帧快捷键相同，逐帧后退优先生效');
+      }
+      setState();
+    },
+  );
+}
+
+String _keyLabel(LogicalKeyboardKey key) {
+  final label = key.keyLabel.trim();
+  return label.isEmpty ? (key.debugName ?? '未知按键') : label;
+}
+
+final Set<LogicalKeyboardKey> _playerReservedKeys = {
+  LogicalKeyboardKey.tab,
+  LogicalKeyboardKey.keyQ,
+  LogicalKeyboardKey.keyR,
+  LogicalKeyboardKey.arrowUp,
+  LogicalKeyboardKey.arrowDown,
+  LogicalKeyboardKey.arrowLeft,
+  LogicalKeyboardKey.arrowRight,
+  LogicalKeyboardKey.space,
+  LogicalKeyboardKey.keyF,
+  LogicalKeyboardKey.keyD,
+  LogicalKeyboardKey.keyP,
+  LogicalKeyboardKey.keyM,
+  LogicalKeyboardKey.keyS,
+  LogicalKeyboardKey.keyL,
+  LogicalKeyboardKey.enter,
+  LogicalKeyboardKey.digit1,
+  LogicalKeyboardKey.digit2,
+  LogicalKeyboardKey.keyW,
+  LogicalKeyboardKey.keyE,
+  LogicalKeyboardKey.keyT,
+  LogicalKeyboardKey.keyV,
+  LogicalKeyboardKey.keyG,
+  LogicalKeyboardKey.bracketLeft,
+  LogicalKeyboardKey.bracketRight,
+};
+
+Future<LogicalKeyboardKey?> _showKeyCaptureDialog(
+  BuildContext context,
+  String title,
+  LogicalKeyboardKey defaultKey,
+) {
+  return showDialog<LogicalKeyboardKey>(
+    context: context,
+    builder: (context) => AlertDialog(
+      constraints: Style.dialogFixedConstraints,
+      title: Text(title),
+      content: Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent) {
+            final key = event.logicalKey;
+            if (key == LogicalKeyboardKey.escape) {
+              Get.back();
+            } else if (!_modifierKeys.contains(key)) {
+              Get.back(result: key);
+            }
+          }
+          return KeyEventResult.handled;
+        },
+        child: const Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: Text('请按下要设置的按键（仅支持单个按键），Esc 取消'),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: Get.back,
+          child: Text(
+            '取消',
+            style: TextStyle(color: ColorScheme.of(context).outline),
+          ),
+        ),
+        TextButton(
+          onPressed: () => Get.back(result: defaultKey),
+          child: const Text('恢复默认'),
+        ),
+      ],
+    ),
+  );
+}
+
+final Set<LogicalKeyboardKey> _modifierKeys = {
+  LogicalKeyboardKey.shift,
+  LogicalKeyboardKey.shiftLeft,
+  LogicalKeyboardKey.shiftRight,
+  LogicalKeyboardKey.control,
+  LogicalKeyboardKey.controlLeft,
+  LogicalKeyboardKey.controlRight,
+  LogicalKeyboardKey.alt,
+  LogicalKeyboardKey.altLeft,
+  LogicalKeyboardKey.altRight,
+  LogicalKeyboardKey.meta,
+  LogicalKeyboardKey.metaLeft,
+  LogicalKeyboardKey.metaRight,
+};

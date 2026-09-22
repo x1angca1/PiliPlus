@@ -44,6 +44,7 @@ import 'package:PiliPlus/utils/utils.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flex_seed_scheme/flex_seed_scheme.dart' show FlexSchemeVariant;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:get/get.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:material_ui/material_ui.dart';
@@ -966,6 +967,24 @@ abstract final class Pref {
 
   static bool get keyboardControl =>
       _setting.get(SettingBoxKey.keyboardControl, defaultValue: true);
+
+  static LogicalKeyboardKey get frameBackwardKey =>
+      LogicalKeyboardKey.findKeyByKeyId(
+        _setting.get(
+          SettingBoxKey.frameBackwardKey,
+          defaultValue: LogicalKeyboardKey.comma.keyId,
+        ),
+      ) ??
+      LogicalKeyboardKey.comma;
+
+  static LogicalKeyboardKey get frameForwardKey =>
+      LogicalKeyboardKey.findKeyByKeyId(
+        _setting.get(
+          SettingBoxKey.frameForwardKey,
+          defaultValue: LogicalKeyboardKey.period.keyId,
+        ),
+      ) ??
+      LogicalKeyboardKey.period;
 
   static bool get pauseOnMinimize =>
       _setting.get(SettingBoxKey.pauseOnMinimize, defaultValue: false);
